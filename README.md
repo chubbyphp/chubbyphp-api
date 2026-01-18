@@ -26,7 +26,7 @@ A set of CRUD middleware and request handlers for building APIs with PSR-15.
 ## Requirements
 
  * php: ^8.3
- * [chubbyphp/chubbyphp-decode-encode][2]: ^1.3.1
+ * [chubbyphp/chubbyphp-decode-encode][2]: ^1.4
  * [chubbyphp/chubbyphp-http-exception][3]: ^1.3.2
  * [chubbyphp/chubbyphp-parsing][4]: ^2.2
  * [psr/container][5]: ^1.1.2|^2.0.2
