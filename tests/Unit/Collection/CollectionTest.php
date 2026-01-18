@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Chubbyphp\Tests\Api\Unit\Collection;
 
 use Chubbyphp\Api\Collection\AbstractCollection;
-use Chubbyphp\Api\Collection\CollectionInterface;
 use Chubbyphp\Api\Model\ModelInterface;
 use Chubbyphp\Mock\MockMethod\WithReturn;
 use Chubbyphp\Mock\MockObjectBuilder;
@@ -18,7 +17,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class CollectionTest extends TestCase
 {
-    final public function testGetSet(): void
+    public function testGetSet(): void
     {
         $collection = new class extends AbstractCollection {};
 
