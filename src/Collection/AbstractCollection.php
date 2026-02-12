@@ -112,7 +112,6 @@ abstract class AbstractCollection implements CollectionInterface
      */
     final public function jsonSerialize(): array
     {
-        /** @var array<array{id: string, createdAt: \DateTimeInterface, updatedAt: null|\DateTimeInterface, ...}> $items */
         $items = [];
         foreach ($this->items as $item) {
             $items[] = $item->jsonSerialize();

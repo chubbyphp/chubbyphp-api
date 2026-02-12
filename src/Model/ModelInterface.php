@@ -16,4 +16,9 @@ interface ModelInterface extends \JsonSerializable
      * @return null|\DateTime|\DateTimeImmutable
      */
     public function getUpdatedAt(): ?\DateTimeInterface;
+
+    /**
+     * @return array{id: string, createdAt: \DateTimeInterface, updatedAt: null|\DateTimeInterface, ...}
+     */
+    public function jsonSerialize(): array;
 }
