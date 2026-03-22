@@ -62,17 +62,15 @@ abstract class AbstractCollectionResponse implements CollectionResponseInterface
      */
     final public function jsonSerialize(): array
     {
-        $items = [];
-        foreach ($this->items as $item) {
-            $items[] = $item->jsonSerialize();
-        }
-
         return [
             'offset' => $this->offset,
             'limit' => $this->limit,
             'filters' => $this->getFilters()->jsonSerialize(),
             'sort' => $this->getSort()->jsonSerialize(),
-            'items' => $items,
+            'items' => array_map(
+                static fn (ModelResponseInterface $modelResponse) => $modelResponse->jsonSerialize(),
+                $this->items
+            ),
             'count' => $this->count,
             '_type' => $this->_type,
             '_links' => $this->_links,

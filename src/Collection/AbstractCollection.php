@@ -112,17 +112,15 @@ abstract class AbstractCollection implements CollectionInterface
      */
     final public function jsonSerialize(): array
     {
-        $items = [];
-        foreach ($this->items as $item) {
-            $items[] = $item->jsonSerialize();
-        }
-
         return [
             'offset' => $this->offset,
             'limit' => $this->limit,
             'filters' => $this->filters,
             'sort' => $this->sort,
-            'items' => $items,
+            'items' => array_map(
+                static fn (ModelInterface $model) => $model->jsonSerialize(),
+                $this->items
+            ),
             'count' => $this->count,
         ];
     }
