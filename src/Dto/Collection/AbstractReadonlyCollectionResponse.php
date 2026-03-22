@@ -6,33 +6,27 @@ namespace Chubbyphp\Api\Dto\Collection;
 
 use Chubbyphp\Api\Dto\Model\ModelResponseInterface;
 
-/**
- * @deprecated, use AbstractReadonlyCollectionResponse\AbstractReadonlyCollectionResponse
- */
-abstract class AbstractCollectionResponse implements CollectionResponseInterface
+abstract readonly class AbstractReadonlyCollectionResponse implements CollectionResponseInterface
 {
-    public int $offset;
-
-    public int $limit;
-
     /**
-     * @var array<ModelResponseInterface>
-     */
-    public array $items;
-
-    public int $count;
-
-    public string $_type;
-
-    /**
-     * @var array<string, array{
+     * @param array<ModelResponseInterface> $items
+     * @param array<string, array{
      *   href: string,
      *   templated: bool,
      *   rel: array<string>,
      *   attributes: array<string, string>
-     * }>
+     * }> $_links
      */
-    public array $_links;
+    public function __construct(
+        public int $offset,
+        public int $limit,
+        public CollectionFiltersInterface $filters,
+        public CollectionSortInterface $sort,
+        public array $items,
+        public int $count,
+        public string $_type,
+        public array $_links
+    ) {}
 
     /**
      * @return array{
@@ -68,8 +62,8 @@ abstract class AbstractCollectionResponse implements CollectionResponseInterface
         return [
             'offset' => $this->offset,
             'limit' => $this->limit,
-            'filters' => $this->getFilters()->jsonSerialize(),
-            'sort' => $this->getSort()->jsonSerialize(),
+            'filters' => $this->filters->jsonSerialize(),
+            'sort' => $this->sort->jsonSerialize(),
             'items' => array_map(
                 static fn (ModelResponseInterface $modelResponse) => $modelResponse->jsonSerialize(),
                 $this->items
@@ -79,8 +73,4 @@ abstract class AbstractCollectionResponse implements CollectionResponseInterface
             '_links' => $this->_links,
         ];
     }
-
-    abstract protected function getFilters(): CollectionFiltersInterface;
-
-    abstract protected function getSort(): CollectionSortInterface;
 }

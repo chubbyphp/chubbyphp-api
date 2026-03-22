@@ -40,7 +40,7 @@ A set of CRUD middleware and request handlers for building APIs with PSR-15.
 Through [Composer](http://getcomposer.org) as [chubbyphp/chubbyphp-api][1].
 
 ```sh
-composer require chubbyphp/chubbyphp-api "^1.0"
+composer require chubbyphp/chubbyphp-api "^1.1"
 ```
 
 ## Usage
@@ -144,10 +144,12 @@ use App\Pet\Model\Pet;
 use Chubbyphp\Api\Dto\Model\ModelRequestInterface;
 use Chubbyphp\Api\Model\ModelInterface;
 
-final class PetRequest implements ModelRequestInterface
+final readonly class PetRequest implements ModelRequestInterface
 {
-    public string $name;
-    public ?string $tag = null;
+    public function __construct(
+        public string $name,
+        public ?string $tag,
+    ) {}
 
     public function createModel(): ModelInterface
     {
@@ -182,15 +184,17 @@ namespace App\Pet\Dto\Model;
 
 use Chubbyphp\Api\Dto\Model\ModelResponseInterface;
 
-final class PetResponse implements ModelResponseInterface
+final readonly class PetResponse implements \IteratorAggregate, ModelResponseInterface
 {
-    public string $id;
-    public string $createdAt;
-    public ?string $updatedAt = null;
-    public string $name;
-    public ?string $tag = null;
-    public string $_type;
-    public array $_links;
+    public function __construct(
+        public string $id,
+        public string $createdAt,
+        public ?string $updatedAt,
+        public string $name,
+        public ?string $tag,
+        public string $_type,
+        public array $_links = [],
+    ) {}
 
     public function jsonSerialize(): array
     {
@@ -203,6 +207,11 @@ final class PetResponse implements ModelResponseInterface
             '_type' => $this->_type,
             '_links' => $this->_links,
         ];
+    }
+
+    public function getIterator(): \Traversable
+    {
+        return new \ArrayIterator(get_object_vars($this));
     }
 }
 ```
@@ -222,12 +231,14 @@ use App\Pet\Collection\PetCollection;
 use Chubbyphp\Api\Collection\CollectionInterface;
 use Chubbyphp\Api\Dto\Collection\CollectionRequestInterface;
 
-final class PetCollectionRequest implements CollectionRequestInterface
+final readonly class PetCollectionRequest implements CollectionRequestInterface
 {
-    public int $offset;
-    public int $limit;
-    public PetCollectionFilters $filters;
-    public PetCollectionSort $sort;
+    public function __construct(
+        public int $offset,
+        public int $limit,
+        public PetCollectionFilters $filters,
+        public PetCollectionSort $sort
+    ) {}
 
     public function createCollection(): CollectionInterface
     {
@@ -253,9 +264,9 @@ namespace App\Pet\Dto\Collection;
 
 use Chubbyphp\Api\Dto\Collection\CollectionFiltersInterface;
 
-final class PetCollectionFilters implements CollectionFiltersInterface
+final readonly class PetCollectionFilters implements CollectionFiltersInterface
 {
-    public ?string $name = null;
+    public function __construct(public ?string $name = null) {}
 
     public function jsonSerialize(): array
     {
@@ -273,9 +284,9 @@ namespace App\Pet\Dto\Collection;
 
 use Chubbyphp\Api\Dto\Collection\CollectionSortInterface;
 
-final class PetCollectionSort implements CollectionSortInterface
+final readonly class PetCollectionSort implements CollectionSortInterface
 {
-    public ?string $name = null;
+    public function __construct(public ?string $name = null) {}
 
     public function jsonSerialize(): array
     {
@@ -284,7 +295,7 @@ final class PetCollectionSort implements CollectionSortInterface
 }
 ```
 
-Extend `AbstractCollectionResponse` for paginated API responses.
+Extend `AbstractReadonlyCollectionResponse` for paginated API responses.
 
 ```php
 <?php
@@ -294,17 +305,36 @@ declare(strict_types=1);
 namespace App\Pet\Dto\Collection;
 
 use App\Pet\Dto\Model\PetResponse;
-use Chubbyphp\Api\Dto\Collection\AbstractCollectionResponse;
+use Chubbyphp\Api\Dto\Collection\AbstractReadonlyCollectionResponse;
 
-final class PetCollectionResponse extends AbstractCollectionResponse
+final readonly class PetCollectionResponse extends AbstractCollectionResponse implements \IteratorAggregate
 {
-    public PetCollectionFilters $filters;
-    public PetCollectionSort $sort;
+    public function __construct(
+        int $offset,
+        int $limit,
+        PetCollectionFilters $filters,
+        PetCollectionSort $sort,
+        array $items,
+        int $count,
+        string $_type,
+        array $_links,
+    ) {
+        parent::__construct(
+            $offset,
+            $limit,
+            $filters,
+            $sort,
+            $items,
+            $count,
+            $_type,
+            $_links,
+        );
+    }
 
-    public array $items;
-
-    protected function getFilters(): PetCollectionFilters { return $this->filters; }
-    protected function getSort(): PetCollectionSort { return $this->sort; }
+    final public function getIterator(): \Traversable
+    {
+        return new \ArrayIterator(get_object_vars($this));
+    }
 }
 ```
 
@@ -319,17 +349,33 @@ declare(strict_types=1);
 
 namespace App\Pet\Parsing;
 
-use App\Pet\Dto\Collection\{PetCollectionFilters, PetCollectionRequest, PetCollectionResponse, PetCollectionSort};
-use App\Pet\Dto\Model\{PetRequest, PetResponse};
+use App\Pet\Dto\Collection\PetCollectionFilters;
+use App\Pet\Dto\Collection\PetCollectionRequest;
+use App\Pet\Dto\Collection\PetCollectionResponse;
+use App\Pet\Dto\Collection\PetCollectionSort;
+use App\Pet\Dto\Model\PetRequest;
+use App\Pet\Dto\Model\PetResponse;
 use Chubbyphp\Api\Collection\CollectionInterface;
 use Chubbyphp\Api\Parsing\ParsingInterface;
 use Chubbyphp\Framework\Router\UrlGeneratorInterface;
+use Chubbyphp\Parsing\Enum\Uuid;
 use Chubbyphp\Parsing\ParserInterface;
 use Chubbyphp\Parsing\Schema\ObjectSchemaInterface;
+use Chubbyphp\Parsing\Schema\RecordSchema;
 use Psr\Http\Message\ServerRequestInterface;
 
 final class PetParsing implements ParsingInterface
 {
+    private ?ObjectSchemaInterface $collectionRequestSchema = null;
+
+    private ?ObjectSchemaInterface $collectionResponseSchema = null;
+
+    private ?ObjectSchemaInterface $modelRequestSchema = null;
+
+    private ?ObjectSchemaInterface $modelResponseSchema = null;
+
+    private ?RecordSchema $linksSchema = null;
+
     public function __construct(
         private readonly ParserInterface $parser,
         private readonly UrlGeneratorInterface $urlGenerator,
@@ -337,92 +383,169 @@ final class PetParsing implements ParsingInterface
 
     public function getCollectionRequestSchema(ServerRequestInterface $request): ObjectSchemaInterface
     {
-        $p = $this->parser;
+        if (null === $this->collectionRequestSchema) {
+            $p = $this->parser;
 
-        return $p->object([
-            'offset' => $p->union([$p->string()->toInt(), $p->int()->default(0)]),
-            'limit' => $p->union([$p->string()->toInt(), $p->int()->default(CollectionInterface::LIMIT)]),
-            'filters' => $p->object([
-                'name' => $p->string()->nullable()->default(null),
-            ], PetCollectionFilters::class)->strict()->default([]),
-            'sort' => $p->object([
-                'name' => $p->union([$p->literal('asc'), $p->literal('desc')])->nullable()->default(null),
-            ], PetCollectionSort::class)->strict()->default([]),
-        ], PetCollectionRequest::class)->strict();
+            $this->collectionRequestSchema = $p->object([
+                'offset' => $p->union([$p->string()->toInt(), $p->int()->default(0)]),
+                'limit' => $p->union([
+                    $p->string()->toInt(),
+                    $p->int()->default(CollectionInterface::LIMIT),
+                ]),
+                'filters' => $p->object([
+                    'name' => $p->string()->nullable()->default(null),
+                ], PetCollectionFilters::class, true)->strict()->default([]),
+                'sort' => $p->object([
+                    'name' => $p->union([
+                        $p->const('asc'),
+                        $p->const('desc'),
+                    ])->nullable()->default(null),
+                ], PetCollectionSort::class, true)->strict()->default([]),
+            ], PetCollectionRequest::class, true)->strict();
+        }
+
+        return $this->collectionRequestSchema;
     }
 
     public function getCollectionResponseSchema(ServerRequestInterface $request): ObjectSchemaInterface
     {
-        $p = $this->parser;
+        if (null === $this->collectionResponseSchema) {
+            $p = $this->parser;
 
-        return $p->object([
-            'offset' => $p->int(),
-            'limit' => $p->int(),
-            'filters' => $p->object(['name' => $p->string()->nullable()], PetCollectionFilters::class)->strict(),
-            'sort' => $p->object([
-                'name' => $p->union([$p->literal('asc'), $p->literal('desc')])->nullable()->default(null),
-            ], PetCollectionSort::class)->strict(),
-            'items' => $p->array($this->getModelResponseSchema($request)),
-            'count' => $p->int(),
-            '_type' => $p->literal('petCollection')->default('petCollection'),
-        ], PetCollectionResponse::class)->strict()->postParse(fn ($r) => $this->addCollectionLinks($r));
+            $this->collectionResponseSchema = $p->object([
+                'offset' => $p->int(),
+                'limit' => $p->int(),
+                'filters' => $p->object([
+                    'name' => $p->string()->nullable(),
+                ], PetCollectionFilters::class, true)->strict(),
+                'sort' => $p->object([
+                    'name' => $p->union([
+                        $p->const('asc'),
+                        $p->const('desc'),
+                    ])->nullable()->default(null),
+                ], PetCollectionSort::class, true)->strict(),
+                'items' => $p->array($this->getModelResponseSchema($request)),
+                'count' => $p->int(),
+                '_type' => $p->const('petCollection')->default('petCollection'),
+                '_links' => $this->getLinksSchema(),
+            ], PetCollectionResponse::class, true)
+                ->strict()
+                ->postParse(function (PetCollectionResponse $petCollectionResponse) {
+                    $queryParams = [
+                        'offset' => $petCollectionResponse->offset,
+                        'limit' => $petCollectionResponse->limit,
+                        'filters' => $petCollectionResponse->filters->jsonSerialize(),
+                        'sort' => $petCollectionResponse->sort->jsonSerialize(),
+                    ];
+
+                    return new PetCollectionResponse(
+                        $petCollectionResponse->offset,
+                        $petCollectionResponse->limit,
+                        $petCollectionResponse->filters,
+                        $petCollectionResponse->sort,
+                        $petCollectionResponse->items,
+                        $petCollectionResponse->count,
+                        $petCollectionResponse->_type,
+                        [
+                            'list' => [
+                                'href' => $this->urlGenerator->generatePath('pet_list', [], $queryParams),
+                                'templated' => false,
+                                'rel' => [],
+                                'attributes' => ['method' => 'GET'],
+                            ],
+                            'create' => [
+                                'href' => $this->urlGenerator->generatePath('pet_create'),
+                                'templated' => false,
+                                'rel' => [],
+                                'attributes' => ['method' => 'POST'],
+                            ],
+                        ],
+                    );
+                })
+            ;
+        }
+
+        return $this->collectionResponseSchema;
     }
 
     public function getModelRequestSchema(ServerRequestInterface $request): ObjectSchemaInterface
     {
-        $p = $this->parser;
+        if (null === $this->modelRequestSchema) {
+            $p = $this->parser;
 
-        return $p->object([
-            'name' => $p->string()->minLength(1),
-            'tag' => $p->string()->minLength(1)->nullable(),
-        ], PetRequest::class)->strict(['id', 'createdAt', 'updatedAt', '_type', '_links']);
+            $this->modelRequestSchema = $p->object([
+                'name' => $p->string()->minLength(1),
+                'tag' => $p->string()->minLength(1)->nullable(),
+            ], PetRequest::class, true)->strict(['id', 'createdAt', 'updatedAt', '_type', '_links']);
+        }
+
+        return $this->modelRequestSchema;
     }
 
     public function getModelResponseSchema(ServerRequestInterface $request): ObjectSchemaInterface
     {
-        $p = $this->parser;
+        if (null === $this->modelResponseSchema) {
+            $p = $this->parser;
 
-        return $p->object([
-            'id' => $p->string(),
-            'createdAt' => $p->dateTime()->toString(),
-            'updatedAt' => $p->dateTime()->nullable()->toString(),
-            'name' => $p->string(),
-            'tag' => $p->string()->nullable(),
-            '_type' => $p->literal('pet')->default('pet'),
-        ], PetResponse::class)->strict()->postParse(fn ($r) => $this->addModelLinks($r));
+            $this->modelResponseSchema = $p->object([
+                'id' => $p->string()->uuid(Uuid::v7),
+                'createdAt' => $p->dateTime()->toString(),
+                'updatedAt' => $p->dateTime()->nullable()->toString(),
+                'name' => $p->string(),
+                'tag' => $p->string()->nullable(),
+                '_type' => $p->const('pet')->default('pet'),
+                '_links' => $this->getLinksSchema(),
+            ], PetResponse::class, true)->strict()
+                ->postParse(
+                    fn (PetResponse $petResponse) => new PetResponse(
+                        $petResponse->id,
+                        $petResponse->createdAt,
+                        $petResponse->updatedAt,
+                        $petResponse->name,
+                        $petResponse->tag,
+                        $petResponse->_type,
+                        [
+                            'read' => [
+                                'href' => $this->urlGenerator->generatePath('pet_read', ['id' => $petResponse->id]),
+                                'templated' => false,
+                                'rel' => [],
+                                'attributes' => ['method' => 'GET'],
+                            ],
+                            'update' => [
+                                'href' => $this->urlGenerator->generatePath('pet_update', ['id' => $petResponse->id]),
+                                'templated' => false,
+                                'rel' => [],
+                                'attributes' => ['method' => 'PUT'],
+                            ],
+                            'delete' => [
+                                'href' => $this->urlGenerator->generatePath('pet_delete', ['id' => $petResponse->id]),
+                                'templated' => false,
+                                'rel' => [],
+                                'attributes' => ['method' => 'DELETE'],
+                            ],
+                        ]
+                    )
+                )
+            ;
+        }
+
+        return $this->modelResponseSchema;
     }
 
-    private function addCollectionLinks(PetCollectionResponse $response): PetCollectionResponse
+    private function getLinksSchema(): RecordSchema
     {
-        $queryParams = [
-            'offset' => $response->offset,
-            'limit' => $response->limit,
-            'filters' => $response->filters->jsonSerialize(),
-            'sort' => $response->sort->jsonSerialize(),
-        ];
+        if (null === $this->linksSchema) {
+            $p = $this->parser;
 
-        $response->_links = [
-            'list' => $this->link($this->urlGenerator->generatePath('pet_list', [], $queryParams), 'GET'),
-            'create' => $this->link($this->urlGenerator->generatePath('pet_create'), 'POST'),
-        ];
+            $this->linksSchema = $p->record($p->assoc([
+                'href' => $p->string(),
+                'templated' => $p->bool(),
+                'rel' => $p->array($p->string()),
+                'attributes' => $p->record($p->string()),
+            ]))->default([]);
+        }
 
-        return $response;
-    }
-
-    private function addModelLinks(PetResponse $response): PetResponse
-    {
-        $response->_links = [
-            'read' => $this->link($this->urlGenerator->generatePath('pet_read', ['id' => $response->id]), 'GET'),
-            'update' => $this->link($this->urlGenerator->generatePath('pet_update', ['id' => $response->id]), 'PUT'),
-            'delete' => $this->link($this->urlGenerator->generatePath('pet_delete', ['id' => $response->id]), 'DELETE'),
-        ];
-
-        return $response;
-    }
-
-    private function link(string $href, string $method): array
-    {
-        return ['href' => $href, 'templated' => false, 'rel' => [], 'attributes' => ['method' => $method]];
+        return $this->linksSchema;
     }
 }
 ```
