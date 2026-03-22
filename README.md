@@ -317,7 +317,7 @@ final readonly class PetCollectionResponse extends AbstractCollectionResponse im
         array $items,
         int $count,
         string $_type,
-        array $_links,
+        array $_links = [],
     ) {
         parent::__construct(
             $offset,
@@ -361,7 +361,6 @@ use Chubbyphp\Framework\Router\UrlGeneratorInterface;
 use Chubbyphp\Parsing\Enum\Uuid;
 use Chubbyphp\Parsing\ParserInterface;
 use Chubbyphp\Parsing\Schema\ObjectSchemaInterface;
-use Chubbyphp\Parsing\Schema\RecordSchema;
 use Psr\Http\Message\ServerRequestInterface;
 
 final class PetParsing implements ParsingInterface
@@ -373,8 +372,6 @@ final class PetParsing implements ParsingInterface
     private ?ObjectSchemaInterface $modelRequestSchema = null;
 
     private ?ObjectSchemaInterface $modelResponseSchema = null;
-
-    private ?RecordSchema $linksSchema = null;
 
     public function __construct(
         private readonly ParserInterface $parser,
@@ -427,7 +424,6 @@ final class PetParsing implements ParsingInterface
                 'items' => $p->array($this->getModelResponseSchema($request)),
                 'count' => $p->int(),
                 '_type' => $p->const('petCollection')->default('petCollection'),
-                '_links' => $this->getLinksSchema(),
             ], PetCollectionResponse::class, true)
                 ->strict()
                 ->postParse(function (PetCollectionResponse $petCollectionResponse) {
@@ -494,7 +490,6 @@ final class PetParsing implements ParsingInterface
                 'name' => $p->string(),
                 'tag' => $p->string()->nullable(),
                 '_type' => $p->const('pet')->default('pet'),
-                '_links' => $this->getLinksSchema(),
             ], PetResponse::class, true)->strict()
                 ->postParse(
                     fn (PetResponse $petResponse) => new PetResponse(
@@ -530,22 +525,6 @@ final class PetParsing implements ParsingInterface
         }
 
         return $this->modelResponseSchema;
-    }
-
-    private function getLinksSchema(): RecordSchema
-    {
-        if (null === $this->linksSchema) {
-            $p = $this->parser;
-
-            $this->linksSchema = $p->record($p->assoc([
-                'href' => $p->string(),
-                'templated' => $p->bool(),
-                'rel' => $p->array($p->string()),
-                'attributes' => $p->record($p->string()),
-            ]))->default([]);
-        }
-
-        return $this->linksSchema;
     }
 }
 ```
