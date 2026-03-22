@@ -184,7 +184,7 @@ namespace App\Pet\Dto\Model;
 
 use Chubbyphp\Api\Dto\Model\ModelResponseInterface;
 
-final readonly class PetResponse implements \IteratorAggregate, ModelResponseInterface
+final readonly class PetResponse implements ModelResponseInterface
 {
     public function __construct(
         public string $id,
@@ -207,11 +207,6 @@ final readonly class PetResponse implements \IteratorAggregate, ModelResponseInt
             '_type' => $this->_type,
             '_links' => $this->_links,
         ];
-    }
-
-    public function getIterator(): \Traversable
-    {
-        return new \ArrayIterator(get_object_vars($this));
     }
 }
 ```
@@ -307,7 +302,7 @@ namespace App\Pet\Dto\Collection;
 use App\Pet\Dto\Model\PetResponse;
 use Chubbyphp\Api\Dto\Collection\AbstractReadonlyCollectionResponse;
 
-final readonly class PetCollectionResponse extends AbstractCollectionResponse implements \IteratorAggregate
+final readonly class PetCollectionResponse extends AbstractCollectionResponse
 {
     public function __construct(
         int $offset,
@@ -329,11 +324,6 @@ final readonly class PetCollectionResponse extends AbstractCollectionResponse im
             $_type,
             $_links,
         );
-    }
-
-    final public function getIterator(): \Traversable
-    {
-        return new \ArrayIterator(get_object_vars($this));
     }
 }
 ```
