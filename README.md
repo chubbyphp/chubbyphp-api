@@ -28,7 +28,7 @@ A set of CRUD middleware and request handlers for building APIs with PSR-15.
  * php: ^8.3
  * [chubbyphp/chubbyphp-decode-encode][2]: ^1.4.1
  * [chubbyphp/chubbyphp-http-exception][3]: ^1.3.3
- * [chubbyphp/chubbyphp-parsing][4]: ^2.6.1
+ * [chubbyphp/chubbyphp-parsing][4]: ^2.9|^3.0
  * [psr/container][5]: ^1.1.2|^2.0.2
  * [psr/http-message][6]: ^1.1|^2.0
  * [psr/http-server-handler][7]: ^1.0.2
@@ -40,7 +40,7 @@ A set of CRUD middleware and request handlers for building APIs with PSR-15.
 Through [Composer](http://getcomposer.org) as [chubbyphp/chubbyphp-api][1].
 
 ```sh
-composer require chubbyphp/chubbyphp-api "^1.1"
+composer require chubbyphp/chubbyphp-api "^1.2"
 ```
 
 ## Usage
